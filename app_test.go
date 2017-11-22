@@ -172,10 +172,12 @@ func (m *MockOperationHandle) HttpGet(url string) ([]byte, error) {
 		return m.MockGet(url)
 	} else {
 		resp := `{
-			"containersAllocated":100,
-			"containersPending":80,
-			"allocatedMB":6000,
-			"totalMB":10000
+			"clusterMetrics": {
+				"containersAllocated":100,
+				"containersPending":80,
+				"allocatedMB":6000,
+				"totalMB":10000
+			}
 		}`
 		return []byte(resp), nil
 
@@ -248,7 +250,7 @@ func TestStartWithSize(t *testing.T) {
 	err := a.Start(&AppStartOptions{
 		Name:     "test-cluster",
 		Filename: "./cluster-sample.yml",
-		Vars:     map[string]string{"size": "0"},
+		Vars:     map[string]string{"core": "0"},
 	})
 	if err != nil {
 		t.Fatalf("Start command expected to success but failed with %s", err.Error())
@@ -311,6 +313,7 @@ func TestListDetail(t *testing.T) {
   Nodes:
     master: 1
     core: 2(5)
+
 `
 	out := a.Stdout.String()
 	if exp2 != out {

@@ -247,6 +247,7 @@ type AppListOptions struct {
 	NoMaster      bool
 	NoMetrics     bool
 	NoClusterSize bool
+	Limit         int
 }
 
 func (s *App) List(o *AppListOptions) (err error) {
@@ -257,10 +258,14 @@ func (s *App) List(o *AppListOptions) (err error) {
 		states = ClusterStateActive
 	}
 
+	i := 0
 	e := s.EMRAPI.ListClustersPages(&emr.ListClustersInput{ClusterStates: aws.StringSlice(states)}, func(out *emr.ListClustersOutput, b bool) bool {
 		for _, cls := range out.Clusters {
 			err = s.printClusterInfo(o, cls)
 			if err != nil {
+				return false
+			}
+			if i += 1; i >= o.Limit {
 				return false
 			}
 		}
@@ -306,6 +311,10 @@ func (s *App) printClusterInfo(o *AppListOptions, cluster *emr.ClusterSummary) e
 		}
 	}
 
+	if !o.NoMaster || !o.NoMetrics || o.NoClusterSize {
+		fmt.Fprintln(s.Stdout)
+	}
+
 	return nil
 }
 
@@ -337,19 +346,23 @@ type ClusterMetrics struct {
 	MemoryUsed          int
 }
 
+type ClusterMetricsBuffer struct {
+	ClusterMetrics ClusterMetrics `json:"clusterMetrics"`
+}
+
 func (s *App) getClusterMetrics(url string) (*ClusterMetrics, error) {
 	buf, err := s.OpHandler.HttpGet(url)
 	if err != nil {
 		return nil, err
 	}
 
-	ret := ClusterMetrics{}
-
-	err = json.Unmarshal(buf, &ret)
+	dat := ClusterMetricsBuffer{}
+	err = json.Unmarshal(buf, &dat)
 	if err != nil {
 		return nil, err
 	}
 
+	ret := dat.ClusterMetrics
 	ret.MemoryUsed = int(float64(ret.AllocatedMB) / float64(ret.TotalMB) * 100)
 
 	return &ret, nil
@@ -536,7 +549,7 @@ func (s *App) SSH(o *AppSSHOptions) error {
 	}
 
 	if o.Debug {
-		fmt.Println(s.Stderr, strings.Join(args, " "))
+		fmt.Fprintln(s.Stderr, strings.Join(args, " "))
 	}
 
 	return s.OpHandler.Exec(args)
@@ -583,8 +596,31 @@ func (s *App) SCP(o *AppSCPOptions) error {
 	}
 
 	if o.Debug {
-		fmt.Println(s.Stderr, strings.Join(args, " "))
+		fmt.Fprintln(s.Stderr, strings.Join(args, " "))
 	}
 
 	return s.OpHandler.Exec(args)
+}
+
+/*
+ * SHELL command
+ */
+func (s *App) Shell(name string, args []string) error {
+	c, err := s.FindByName(name)
+	if err != nil {
+		return err
+	}
+
+	master, err := s.GetMaster(aws.StringValue(c.Id))
+	if err != nil {
+		return nil
+	}
+
+	if len(args) == 0 {
+		fmt.Fprintln(s.Stdout, "export EMR_MASTER="+master)
+	} else {
+		os.Setenv("EMR_MASTER", master)
+		return s.OpHandler.Exec(args)
+	}
+	return nil
 }

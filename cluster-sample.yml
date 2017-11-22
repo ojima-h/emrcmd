@@ -20,7 +20,7 @@ instances:
   - name: core
     instancerole: CORE
     instancetype: m3.xlarge
-    instancecount: {{lookup "size" 1}}
+    instancecount: {{lookup "core" 1}}
     market: SPOT
     bidprice: '0.5'
   - name: task

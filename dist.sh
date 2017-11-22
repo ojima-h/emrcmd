@@ -3,7 +3,7 @@
 set -e
 
 NAME="emrcmd"
-VERSION=1.0.0
+VERSION=0.0.1
 
 TARGET_OS="windows linux darwin"
 TARGET_ARCH="amd64"

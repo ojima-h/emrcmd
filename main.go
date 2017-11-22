@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/urfave/cli.v1"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -14,16 +15,17 @@ func main() {
 
 func BuildCLI(a *App) *cli.App {
 	app := cli.NewApp()
-	app.Usage = "An EMR utility tool"
+	app.Usage = "An EMR utility command"
 	app.Commands = []cli.Command{
 		{
 			Name:      "start",
+			Aliases:   []string{"up"},
 			Usage:     "start new EMR cluster",
 			ArgsUsage: "NAME [KEY=VAL ...]",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:   "filename, f",
-					Value:  "cluster.yml",
+					Value:  path.Join(os.Getenv("HOME"), ".emrcmd-cluster.yml"),
 					EnvVar: "EMR_CLUSTER_CONFIG_FILE",
 				},
 				cli.BoolFlag{
@@ -73,6 +75,10 @@ func BuildCLI(a *App) *cli.App {
 				cli.BoolFlag{
 					Name: "no-size, S",
 				},
+				cli.IntFlag{
+					Name:  "limit, n",
+					Value: 10,
+				},
 			},
 			Action: func(c *cli.Context) error {
 				validateArgsLength(c, 0, 0)
@@ -83,6 +89,7 @@ func BuildCLI(a *App) *cli.App {
 					NoMaster:      b || c.Bool("no-master"),
 					NoMetrics:     b || c.Bool("no-metrics"),
 					NoClusterSize: b || c.Bool("no-size"),
+					Limit:         c.Int("limit"),
 				})
 
 				if err != nil {
@@ -99,7 +106,7 @@ func BuildCLI(a *App) *cli.App {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:   "filename, f",
-					Value:  "cluster.yml",
+					Value:  path.Join(os.Getenv("HOME"), ".emrcmd-cluster.yml"),
 					EnvVar: "EMR_CLUSTER_CONFIG_FILE",
 				},
 				cli.BoolFlag{
@@ -136,7 +143,7 @@ func BuildCLI(a *App) *cli.App {
 		},
 		{
 			Name:      "terminate",
-			Aliases:   []string{"rm"},
+			Aliases:   []string{"rm", "down"},
 			Usage:     "terminate EMR cluster",
 			ArgsUsage: "NAME",
 			Action: func(c *cli.Context) error {
@@ -234,6 +241,63 @@ func BuildCLI(a *App) *cli.App {
 				if err != nil {
 					return cli.NewExitError(err, 1)
 				}
+
+				return nil
+			},
+		},
+		{
+			Name:      "shell",
+			Usage:     "set master uri to EMR_MASTER environment variable",
+			ArgsUsage: "NAME",
+			Action: func(c *cli.Context) error {
+				validateArgsLength(c, 1, -1)
+
+				name := c.Args().Get(0)
+				args := c.Args()[1:]
+
+				err := a.Shell(name, args)
+				if err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				return nil
+			},
+		},
+		{
+			Name:      "init",
+			Usage:     "print initialization script for shell helper",
+			ArgsUsage: "[COMMAND_NAME]",
+			Action: func(c *cli.Context) error {
+				validateArgsLength(c, 0, 1)
+
+				var name string
+				if len(c.Args()) == 1 {
+					name = c.Args().Get(0)
+				} else {
+					name = "emrcmd"
+				}
+				output :=
+					name + `() {
+  local command
+  command="$1"
+  if [ "$#" -gt 0 ]; then
+    shift
+  fi
+
+  case "$command" in
+  shell)
+    if [ "$#" -eq 1 ]; then
+      eval "$(command emrcmd shell "$@")"
+    else
+      command emrcmd shell "$@"
+    fi
+    ;;
+  *)
+    command emrcmd "$command" "$@";;
+  esac
+}
+`
+				fmt.Fprintln(a.Stdout, output)
 
 				return nil
 			},

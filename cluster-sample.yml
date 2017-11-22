@@ -1,0 +1,47 @@
+---
+name: {{name}}
+
+releaselabel: emr-5.9.0
+
+servicerole: EMR_DefaultRole
+jobflowrole: EMR_EC2_DefaultRole
+
+instances:
+  ec2subnetid: subnet-00000000
+  keepjobflowalivewhennosteps: true
+
+  instancegroups:
+  - name: master
+    instancerole: MASTER
+    instancetype: m3.xlarge
+    instancecount: 1
+    market: SPOT
+    bidprice: '0.5'
+  - name: core
+    instancerole: CORE
+    instancetype: m3.xlarge
+    instancecount: {{lookup "size" 1}}
+    market: SPOT
+    bidprice: '0.5'
+  - name: task
+    instancerole: TASK
+    instancetype: m3.xlarge
+    instancecount: 0
+    market: SPOT
+    bidprice: '0.5'
+
+visibletoallusers: true
+tags:
+- key: Name
+  value: EMR-{{name}}
+
+applications:
+- name: Hadoop
+- name: Hive
+- name: Tez
+
+configurations:
+- classification: hive-site
+  properties:
+    hive.exec.parallel: 'true'
+    hive.exec.compress.output: 'true'
